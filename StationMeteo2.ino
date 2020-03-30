@@ -33,7 +33,7 @@ WiFiClient client;
 
 #ifndef STASSID
 #define STASSID "maison"
-#define STAPSK  "pwd"
+#define STAPSK  "B546546AF0"
 #endif
 
 const char* ssid = STASSID;
@@ -56,9 +56,11 @@ bool LastRain = !Rain;
 unsigned int CountRain = 0;
 int CountBak = 0;		// Sauvegarde des données en EEPROM / 24H
 volatile bool updateRain = true;
+bool updateRain5mn = false;
 unsigned long PrevTime = 0;
 unsigned long PrevCount = CountRain;
 int rainRate = 0;
+bool pluieEnCours=false;
 
 // TX20 anémomètre
 volatile boolean TX20IncomingData = false;
@@ -205,17 +207,33 @@ void loop() {
   // Maj
   timer.run();
   if (rainRate > 0) Rain = true;
-  if (updateRain) {
+  if (updateRain || updateRain5mn) {
     // Envoi des infos à Domoticz
     // TODO Calcul du rain rate
     unsigned long currentTime = millis();
-    rainRate = 360000L * Plevel * (CountRain - PrevCount) / (unsigned long)(currentTime - PrevTime);	//mm*100
+    if (updateRain) {
+      if (pluieEnCours) {
+        rainRate = 360000L * Plevel * (CountRain - PrevCount) / (unsigned long)(currentTime - PrevTime);	//mm*100
+        updateRain = false;
+      }
+      else {
+        pluieEnCours=true;
+      }
+      PrevTime = currentTime;
+      PrevCount = CountRain;
+    }
+    else {
+      updateRain5mn = false;
+      // 30mn sans pluie, on réinitialise le compteur
+      if ((currentTime - PrevTime) >= 1800000L) {
+        PrevTime = currentTime;
+        rainRate=0;
+        pluieEnCours=false;
+      }
+    }
     http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3561&nvalue=0&svalue=" + String(rainRate) + ";" + String(CountRain / 1000.0));
     http.GET();
     http.end();
-    updateRain = false;
-    PrevTime = currentTime;
-    PrevCount = CountRain;
     Rain = (rainRate > 0) ? true : false;
   }
 
@@ -240,7 +258,7 @@ void loop() {
         WindChild = Tp + 0.2 * (0.1345 * Tp - 1.59) * WindKMH;
       }
       else {
-        WindChild = 13.12 + 0.6215 * Tp + (0.3965 * Tp - 11.37) * pow(WindKMH,0.16);
+        WindChild = 13.12 + 0.6215 * Tp + (0.3965 * Tp - 11.37) * pow(WindKMH, 0.16);
       }
     }
   }

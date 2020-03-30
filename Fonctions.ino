@@ -29,7 +29,7 @@ void infoMeteo() {
   Delai5mn++;
   if (Delai5mn > 5) {
     Delai5mn = 0;
-    updateRain = true;	// Envoi des données du pluviomètre
+    updateRain5mn = true;	// Envoi des données du pluviomètre
   }
 }
 
@@ -40,7 +40,7 @@ void mesureCapteurs() {
     Tp = http.getString().toFloat();
     //Serial.println(Tp);
   }
-  else Tp = 0;
+  //else Tp = 0; // Lecture impossible, on garde la dernière valeur valide
   http.end();
 #endif
 
@@ -79,11 +79,11 @@ void sendRain() {
 
 ICACHE_RAM_ATTR void rainCount() {
   // Incrémente le compteur de pluie
-  if (!digitalRead(PINrain)) {
-    Serial.println("Pluie");
-    CountRain += Plevel;
-    updateRain = true;
-  }
+  //if (!digitalRead(PINrain)) {
+  Serial.println("Pluie");
+  CountRain += Plevel;
+  updateRain = true;
+  //}
 }
 
 #ifdef CORAGE
