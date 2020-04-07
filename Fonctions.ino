@@ -27,7 +27,8 @@ void infoMeteo() {
   envoiHTTP();
 
   Delai5mn++;
-  if (Delai5mn > 5) {
+  delaiRain30mn++;
+  if (Delai5mn > 4) {
     Delai5mn = 0;
     updateRain5mn = true;	// Envoi des données du pluviomètre
   }
@@ -56,7 +57,7 @@ void envoiHTTP() {
   if (Rain != LastRain) {
     LastRain = Rain;
     // Capteur de pluie
-    http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=switchlight&idx=3572&switchcmd=" + String(Rain ? "On" : "Off"));
+    http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=switchlight&idx=3572&switchcmd=" + String((Rain) ? "On" : "Off"));
     //json.htm?type=command&param=switchlight&idx=99&switchcmd=On
     http.GET();
     http.end();
@@ -80,8 +81,6 @@ void sendRain() {
 ICACHE_RAM_ATTR void rainCount() {
   // Incrémente le compteur de pluie
   //if (!digitalRead(PINrain)) {
-  Serial.println("Pluie");
-  CountRain += Plevel;
   updateRain = true;
   //}
 }

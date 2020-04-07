@@ -3,7 +3,7 @@
 #define SERIALBAUD 9600
 
 // Pluviomètre
-#define Plevel 517	// mm de pluie/1000 par impulsion (Réel: 0.517mm/imp)
+#define Plevel 0.517	// mm de pluie/1000 par impulsion (Réel: 0.517mm/imp)
 // Pins
 #define PINrain			D4 // Pluviomètre
 #define IRQ_ORAGE 		D5 // PIN IRQ MOD1016	

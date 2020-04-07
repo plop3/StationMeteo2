@@ -33,7 +33,7 @@ WiFiClient client;
 
 #ifndef STASSID
 #define STASSID "maison"
-#define STAPSK  "B546546AF0"
+#define STAPSK  "pwd"
 #endif
 
 const char* ssid = STASSID;
@@ -50,17 +50,19 @@ ESP8266WebServer server ( 80 );
 
 //----------------------------------------
 
-bool Rain = false;
+bool Rain = false;      // Pluie en cours (pluviomètre)
 bool LastRain = !Rain;
 // Pluie
 unsigned int CountRain = 0;
 int CountBak = 0;		// Sauvegarde des données en EEPROM / 24H
-volatile bool updateRain = true;
-bool updateRain5mn = false;
-unsigned long PrevTime = 0;
-unsigned long PrevCount = CountRain;
+volatile bool updateRain = false;
+bool updateRain5mn = true;
+int delaiRain30mn = 0;
+unsigned long PrevTime;
 int rainRate = 0;
-bool pluieEnCours=false;
+bool pluieEnCours = false;
+int oldAlert = 0;
+//unsigned long RainTab[60];
 
 // TX20 anémomètre
 volatile boolean TX20IncomingData = false;
@@ -156,7 +158,6 @@ void setup() {
   else {
     // Sinon, récupération des données
     EEPROM.get(4, CountRain);
-    PrevCount = CountRain;
   }
 
   // Timers
@@ -183,6 +184,7 @@ void setup() {
   // Pluviomètre
   pinMode(PINrain, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PINrain), rainCount, RISING);
+  PrevTime = millis() - 36000000L;
 
   // TX20 anémomètre
   pinMode(DATAPIN, INPUT);
@@ -206,35 +208,60 @@ void loop() {
   server.handleClient();
   // Maj
   timer.run();
-  if (rainRate > 0) Rain = true;
-  if (updateRain || updateRain5mn) {
-    // Envoi des infos à Domoticz
-    // TODO Calcul du rain rate
-    unsigned long currentTime = millis();
+
+  // Pluviometre
+  unsigned long currentTime = millis();
+  // Impulsion détectée ?
+  if (updateRain  || updateRain5mn) {   // Détection de pluie ou MAJ
     if (updateRain) {
-      if (pluieEnCours) {
-        rainRate = 360000L * Plevel * (CountRain - PrevCount) / (unsigned long)(currentTime - PrevTime);	//mm*100
-        updateRain = false;
-      }
-      else {
-        pluieEnCours=true;
-      }
-      PrevTime = currentTime;
-      PrevCount = CountRain;
+      delaiRain30mn = 0;
+      CountRain += Plevel;
     }
-    else {
-      updateRain5mn = false;
-      // 30mn sans pluie, on réinitialise le compteur
-      if ((currentTime - PrevTime) >= 1800000L) {
-        PrevTime = currentTime;
-        rainRate=0;
-        pluieEnCours=false;
-      }
+    if (pluieEnCours) {
+      // La dernière impulsion date de moins d'une heure
+      rainRate = 3600000.0 * 100.0 * Plevel  / (unsigned long)(currentTime - PrevTime); //mm*100
     }
+    else  if (updateRain) {
+      pluieEnCours = true;
+    }
+    Rain = (rainRate > 1) ? true : false;
+    // Envoi des données à Domoticz
     http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3561&nvalue=0&svalue=" + String(rainRate) + ";" + String(CountRain / 1000.0));
     http.GET();
     http.end();
-    Rain = (rainRate > 0) ? true : false;
+    String msg = "Pas\%20de\%20pluie";
+    int Alert = 1;
+    if (rainRate > 0 && rainRate <= 200) {
+      msg = "Pluie\%20faible";
+      Alert = 2;
+    };
+    if (rainRate > 200 && rainRate <= 760) {
+      msg = "Pluie\%20moddérée";
+      Alert = 3;
+    };
+    if (rainRate > 760) {
+      msg = "Pluie\%20forte";
+      Alert = 4;
+    };
+    if (oldAlert != Alert) {
+      http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3575&nvalue=" + String(Alert) + "&svalue=" + msg);
+      http.GET();
+      http.end();
+      oldAlert = Alert;
+    }
+    if (updateRain) PrevTime = currentTime;
+    updateRain = false;
+    updateRain5mn = false;
+    delay(200); //Anti-parasites
+  }
+
+  if (delaiRain30mn >= 60) { // 60mn sans pluie -> plus de pluie
+    delaiRain30mn = 0;
+    rainRate = 0;
+    pluieEnCours = false;
+    Rain = false;
+    PrevTime = currentTime - 36000000L;
+    //    sendRainRate("Pas de pluie",0);
   }
 
 #if defined CORAGE
