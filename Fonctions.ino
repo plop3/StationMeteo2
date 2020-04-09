@@ -28,9 +28,13 @@ void infoMeteo() {
 
   Delai5mn++;
   delaiRain30mn++;
-  if (Delai5mn > 4) {
+  if (Delai5mn >=5) {
     Delai5mn = 0;
     updateRain5mn = true;	// Envoi des données du pluviomètre
+  }
+  if (delaiRain30mn >= 60) {
+    delaiRain30mn=0;
+    updateRain30mn= true;
   }
 }
 
@@ -54,7 +58,7 @@ void envoiHTTP() {
   http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3570&nvalue=0&svalue=" + String(Dir) + ";" + DirT[DirS] + ";" + String(Wind) + ";" + String(Gust) + ";" + String(Tp) + ";" + String(WindChild));
   http.GET();
   http.end();
-  if (Rain != LastRain) {
+  if (Rain != LastRain && Rain) {
     LastRain = Rain;
     // Capteur de pluie
     http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=switchlight&idx=3572&switchcmd=" + String((Rain) ? "On" : "Off"));

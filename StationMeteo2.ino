@@ -31,10 +31,7 @@ WiFiClient client;
 // EEprom
 #include <EEPROM.h>
 
-#ifndef STASSID
-#define STASSID "maison"
-#define STAPSK  "pwd"
-#endif
+#include "WiFiP.h"
 
 const char* ssid = STASSID;
 const char* password = STAPSK;
@@ -57,8 +54,9 @@ unsigned int CountRain = 0;
 int CountBak = 0;		// Sauvegarde des données en EEPROM / 24H
 volatile bool updateRain = false;
 bool updateRain5mn = true;
+bool updateRain30mn = false;
 int delaiRain30mn = 0;
-unsigned long PrevTime;
+unsigned long PrevTime, OldTime;
 int rainRate = 0;
 bool pluieEnCours = false;
 int oldAlert = 0;
@@ -196,7 +194,8 @@ void setup() {
   server.on("/gust", sendGustSpeed);
   server.on("/rain", sendRain);
   // Lecture des infos des capteurs initiale
-  infoMeteo();
+  //infoMeteo();
+  mesureCapteurs();
 }
 
 //----------------------------------------
@@ -212,56 +211,44 @@ void loop() {
   // Pluviometre
   unsigned long currentTime = millis();
   // Impulsion détectée ?
-  if (updateRain  || updateRain5mn) {   // Détection de pluie ou MAJ
-    if (updateRain) {
-      delaiRain30mn = 0;
+  if (updateRain) {  
       CountRain += Plevel;
-    }
-    if (pluieEnCours) {
+      if (pluieEnCours) {
       // La dernière impulsion date de moins d'une heure
+      OldTime= PrevTime;
+      delaiRain30mn = 0;
       rainRate = 3600000.0 * 100.0 * Plevel  / (unsigned long)(currentTime - PrevTime); //mm*100
     }
-    else  if (updateRain) {
+    else {
       pluieEnCours = true;
+      OldTime = currentTime;
     }
-    Rain = (rainRate > 1) ? true : false;
-    // Envoi des données à Domoticz
-    http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3561&nvalue=0&svalue=" + String(rainRate) + ";" + String(CountRain / 1000.0));
-    http.GET();
-    http.end();
-    String msg = "Pas\%20de\%20pluie";
-    int Alert = 1;
-    if (rainRate > 0 && rainRate <= 200) {
-      msg = "Pluie\%20faible";
-      Alert = 2;
-    };
-    if (rainRate > 200 && rainRate <= 760) {
-      msg = "Pluie\%20moddérée";
-      Alert = 3;
-    };
-    if (rainRate > 760) {
-      msg = "Pluie\%20forte";
-      Alert = 4;
-    };
-    if (oldAlert != Alert) {
-      http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3575&nvalue=" + String(Alert) + "&svalue=" + msg);
-      http.GET();
-      http.end();
-      oldAlert = Alert;
-    }
-    if (updateRain) PrevTime = currentTime;
+    PrevTime = currentTime;
     updateRain = false;
     updateRain5mn = false;
-    delay(200); //Anti-parasites
+    Delai5mn=0;
+    sendPluv();
+    delay(1000); //Anti-parasites
+  }
+  // Mise à jour du pluviomètre
+  if (updateRain5mn)
+  {
+    if (pluieEnCours && (PrevTime != OldTime)) {
+            rainRate = 3600000.0 * 100.0 * Plevel  / (unsigned long)(currentTime - OldTime); //mm*100
+    }
+    else {
+      rainRate = 0;
+    }
+    updateRain5mn = false;
+    sendPluv();
   }
 
-  if (delaiRain30mn >= 60) { // 60mn sans pluie -> plus de pluie
-    delaiRain30mn = 0;
+   if (updateRain30mn) { // 60mn sans pluie -> plus de pluie
+    updateRain30mn=false;
     rainRate = 0;
     pluieEnCours = false;
     Rain = false;
     PrevTime = currentTime - 36000000L;
-    //    sendRainRate("Pas de pluie",0);
   }
 
 #if defined CORAGE
@@ -291,6 +278,33 @@ void loop() {
   }
 }
 
+void sendPluv() {
+  Rain = (rainRate > 1) ? true : false;
+    // Envoi des données à Domoticz
+    http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3561&nvalue=0&svalue=" + String(rainRate) + ";" + String(CountRain / 1000.0));
+    http.GET();
+    http.end();
+    String msg = "Pas\%20de\%20pluie";
+    int Alert = 1;
+    if (rainRate > 0 && rainRate <= 200) {
+      msg = "Pluie\%20faible";
+      Alert = 2;
+    };
+    if (rainRate > 200 && rainRate <= 760) {
+      msg = "Pluie\%20moddérée";
+      Alert = 3;
+    };
+    if (rainRate > 760) {
+      msg = "Pluie\%20forte";
+      Alert = 4;
+    };
+    if (oldAlert != Alert) {
+      http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3575&nvalue=" + String(Alert) + "&svalue=" + msg);
+      http.GET();
+      http.end();
+      oldAlert = Alert;
+    }
+}
 #if defined CORAGE
 ICACHE_RAM_ATTR void orage() {
   detected = true;
