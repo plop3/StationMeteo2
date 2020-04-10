@@ -218,23 +218,25 @@ void loop() {
       OldTime= PrevTime;
       delaiRain30mn = 0;
       rainRate = 3600000.0 * 100.0 * Plevel  / (unsigned long)(currentTime - PrevTime); //mm*100
+      Rain=(rainRate>1)?true:false;
     }
     else {
       pluieEnCours = true;
       OldTime = currentTime;
     }
     PrevTime = currentTime;
+    delay(300); // Anti-rebonds
     updateRain = false;
     updateRain5mn = false;
     Delai5mn=0;
     sendPluv();
-    delay(1000); //Anti-parasites
   }
   // Mise à jour du pluviomètre
   if (updateRain5mn)
   {
     if (pluieEnCours && (PrevTime != OldTime)) {
             rainRate = 3600000.0 * 100.0 * Plevel  / (unsigned long)(currentTime - OldTime); //mm*100
+            Rain=(rainRate>1)?true:false;
     }
     else {
       rainRate = 0;

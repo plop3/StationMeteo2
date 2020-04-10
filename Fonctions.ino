@@ -58,7 +58,7 @@ void envoiHTTP() {
   http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3570&nvalue=0&svalue=" + String(Dir) + ";" + DirT[DirS] + ";" + String(Wind) + ";" + String(Gust) + ";" + String(Tp) + ";" + String(WindChild));
   http.GET();
   http.end();
-  if (Rain != LastRain && Rain) {
+  if (Rain != LastRain) {
     LastRain = Rain;
     // Capteur de pluie
     http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=switchlight&idx=3572&switchcmd=" + String((Rain) ? "On" : "Off"));
