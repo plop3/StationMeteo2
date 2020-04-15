@@ -217,7 +217,7 @@ void loop() {
       // La dernière impulsion date de moins d'une heure
       OldTime= PrevTime;
       delaiRain30mn = 0;
-      rainRate = 3600000.0 * 100.0 * Plevel  / (unsigned long)(currentTime - PrevTime); //mm*100
+      rainRate = 360000.0 * Plevel  / (unsigned long)(currentTime - PrevTime); //mm*100
       Rain=(rainRate>1)?true:false;
     }
     else {
@@ -235,7 +235,7 @@ void loop() {
   if (updateRain5mn)
   {
     if (pluieEnCours && (PrevTime != OldTime)) {
-            rainRate = 3600000.0 * 100.0 * Plevel  / (unsigned long)(currentTime - OldTime); //mm*100
+            rainRate = 360000.0 * Plevel  / (unsigned long)(currentTime - OldTime); //mm*100
             Rain=(rainRate>1)?true:false;
     }
     else {
@@ -245,7 +245,7 @@ void loop() {
     sendPluv();
   }
 
-   if (updateRain30mn) { // 60mn sans pluie -> plus de pluie
+   if (updateRain30mn) { // 240mn sans pluie -> plus de pluie
     updateRain30mn=false;
     rainRate = 0;
     pluieEnCours = false;

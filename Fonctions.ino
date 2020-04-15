@@ -28,13 +28,13 @@ void infoMeteo() {
 
   Delai5mn++;
   delaiRain30mn++;
-  if (Delai5mn >=5) {
+  if (Delai5mn >= 5) {
     Delai5mn = 0;
     updateRain5mn = true;	// Envoi des données du pluviomètre
   }
-  if (delaiRain30mn >= 60) {
-    delaiRain30mn=0;
-    updateRain30mn= true;
+  if (delaiRain30mn >= 240) {
+    delaiRain30mn = 0;
+    updateRain30mn = true;
   }
 }
 
@@ -71,11 +71,11 @@ void envoiHTTP() {
 //-----------------------------------------------
 
 void sendWindSpeed() {
-  server.send ( 200, "text/plain", String(Wind / 10.0));
+  server.send ( 200, "text/plain", String(Wind * 0.36));
 }
 
 void sendGustSpeed() {
-  server.send(200, "text/plain", String(Gust / 10.0));
+  server.send(200, "text/plain", String(Gust * 0.36));
 }
 
 void sendRain() {
