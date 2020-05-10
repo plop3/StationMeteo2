@@ -84,9 +84,9 @@ void sendRain() {
 
 ICACHE_RAM_ATTR void rainCount() {
   // Incrémente le compteur de pluie
-  if (!digitalRead(PINrain)) {
+  //if (!digitalRead(PINrain)) {
     updateRain = true;
-  }
+  //}
 }
 
 #ifdef CORAGE

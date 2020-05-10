@@ -180,7 +180,7 @@ void setup() {
 #endif
 
   // Pluviomètre
-  pinMode(PINrain, INPUT_PULLUP);
+  pinMode(PINrain, INPUT);
   attachInterrupt(digitalPinToInterrupt(PINrain), rainCount, RISING);
   PrevTime = millis() - 36000000L;
 
