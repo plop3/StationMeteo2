@@ -23,13 +23,13 @@ SimpleTimer timer;
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 
-// Client Web
-#include <ESP8266HTTPClient.h>
-HTTPClient http;
-WiFiClient client;
-
-// EEprom
-#include <EEPROM.h>
+// MQTT
+#include <PubSubClient.h>
+#define mqtt_server "192.168.0.7"
+#define mqtt_user "domo"
+#define mqtt_password "dom456"
+WiFiClient espClient;
+PubSubClient client(espClient);
 
 #include "WiFiP.h"
 
@@ -50,8 +50,7 @@ ESP8266WebServer server ( 80 );
 bool Rain = false;      // Pluie en cours (pluviomètre)
 bool LastRain = !Rain;
 // Pluie
-unsigned int CountRain = 0;
-int CountBak = 0;		// Sauvegarde des données en EEPROM / 24H
+//unsigned int CountRain = 0;
 volatile bool updateRain = false;
 bool updateRain5mn = true;
 bool updateRain30mn = false;
@@ -90,8 +89,6 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
 
-  // EEPROM
-  EEPROM.begin(512);
   // OTA
   WiFi.mode(WIFI_STA);
   IPAddress ip(192, 168, 0, 14);
@@ -142,24 +139,9 @@ void setup() {
   Serial.println("Ready");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-  // Lecture des données de l'eeprom
-  // L'adresse 0 doit correspondre à 24046 Sinon, initialisation des valeurs
-  int Magic;
-  EEPROM.get(0, Magic);
-  if (Magic != 24046) {
-    // Initialisation des valeurs
-    Magic = 24046;
-    EEPROM.put(0, Magic);
-    EEPROM.put(4, CountRain);
-    EEPROM.commit();
-  }
-  else {
-    // Sinon, récupération des données
-    EEPROM.get(4, CountRain);
-  }
 
   // Timers
-  timer.setInterval(60000L, infoMeteo);	  // Mise à jour des données barométriques et envoi des infos à Domoticz
+  timer.setInterval(30000L, infoMeteo);	  // Mise à jour des données barométriques et envoi des infos à Domoticz
 #if defined CORAGE
   // MOD-1016
   Wire.begin();
@@ -195,7 +177,8 @@ void setup() {
   server.on("/rain", sendRain);
   // Lecture des infos des capteurs initiale
   //infoMeteo();
-  mesureCapteurs();
+  // MQTT
+  client.setServer(mqtt_server, 1883);
 }
 
 //----------------------------------------
@@ -211,14 +194,14 @@ void loop() {
   // Pluviometre
   unsigned long currentTime = millis();
   // Impulsion détectée ?
-  if (updateRain) {  
-      CountRain += Plevel;
-      if (pluieEnCours) {
+  if (updateRain) {
+    //CountRain += Plevel;
+    if (pluieEnCours) {
       // La dernière impulsion date de moins d'une heure
-      OldTime= PrevTime;
+      OldTime = PrevTime;
       delaiRain30mn = 0;
       rainRate = 360000.0 * Plevel  / (unsigned long)(currentTime - PrevTime); //mm*100
-      Rain=(rainRate>1)?true:false;
+      Rain = (rainRate > 1) ? true : false;
     }
     else {
       pluieEnCours = true;
@@ -228,15 +211,15 @@ void loop() {
     delay(300); // Anti-rebonds
     updateRain = false;
     updateRain5mn = false;
-    Delai5mn=0;
+    Delai5mn = 0;
     sendPluv();
   }
   // Mise à jour du pluviomètre
   if (updateRain5mn)
   {
     if (pluieEnCours && (PrevTime != OldTime)) {
-            rainRate = 360000.0 * Plevel  / (unsigned long)(currentTime - OldTime); //mm*100
-            Rain=(rainRate>1)?true:false;
+      rainRate = 360000.0 * Plevel  / (unsigned long)(currentTime - OldTime); //mm*100
+      Rain = (rainRate > 1) ? true : false;
     }
     else {
       rainRate = 0;
@@ -245,8 +228,8 @@ void loop() {
     sendPluv();
   }
 
-   if (updateRain30mn) { // 240mn sans pluie -> plus de pluie
-    updateRain30mn=false;
+  if (updateRain30mn) { // 240mn sans pluie -> plus de pluie
+    updateRain30mn = false;
     rainRate = 0;
     pluieEnCours = false;
     Rain = false;
@@ -278,34 +261,37 @@ void loop() {
       }
     }
   }
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
 }
 
 void sendPluv() {
   Rain = (rainRate > 1) ? true : false;
-    // Envoi des données à Domoticz
-    http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3561&nvalue=0&svalue=" + String(rainRate) + ";" + String(CountRain / 1000.0));
-    http.GET();
-    http.end();
-    String msg = "Pas\%20de\%20pluie";
-    int Alert = 1;
-    if (rainRate > 0 && rainRate <= 200) {
-      msg = "Pluie\%20faible";
-      Alert = 2;
-    };
-    if (rainRate > 200 && rainRate <= 760) {
-      msg = "Pluie\%20moddérée";
-      Alert = 3;
-    };
-    if (rainRate > 760) {
-      msg = "Pluie\%20forte";
-      Alert = 4;
-    };
-    if (oldAlert != Alert) {
-      http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3575&nvalue=" + String(Alert) + "&svalue=" + msg);
-      http.GET();
-      http.end();
-      oldAlert = Alert;
-    }
+  // Envoi des données à Domoticz
+  ///    http.begin(client, "http://192.168.0.4:8082/json.htm?type=command&param=udevice&idx=12&nvalue=0&svalue=" + String(rainRate) + ";" + String(CountRain / 1000.0));
+client.publish("meteo2/rainrate", String(rainRate/100).c_str(), true);
+  String msg = "Pas\%20de\%20pluie";
+  int Alert = 1;
+  if (rainRate > 0 && rainRate <= 200) {
+    msg = "Pluie\%20faible";
+    Alert = 2;
+  };
+  if (rainRate > 200 && rainRate <= 760) {
+    msg = "Pluie\%20moddérée";
+    Alert = 3;
+  };
+  if (rainRate > 760) {
+    msg = "Pluie\%20forte";
+    Alert = 4;
+  };
+  if (oldAlert != Alert) {
+    ///      http.begin(client, "http://192.168.0.7:8080/json.htm?type=command&param=udevice&idx=3575&nvalue=" + String(Alert) + "&svalue=" + msg);
+    ///      http.GET();
+    ///      http.end();
+    oldAlert = Alert;
+  }
 }
 #if defined CORAGE
 ICACHE_RAM_ATTR void orage() {
